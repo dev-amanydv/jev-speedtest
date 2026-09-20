@@ -22,9 +22,9 @@ export function BenchmarkSidebar({
   const [isExpanded, setIsExpanded] = useState(false);
 
   return (
-    <aside className="w-full md:w-1/3 flex flex-col justify-between p-6 md:p-8 md:pr-10 border-b md:border-b-0 md:border-r border-neutral-200">
-      {/* Top benchmark content */}
-      <div className="space-y-6">
+    <aside className="w-full md:w-1/3 h-full min-h-0 flex flex-col border-b md:border-b-0 md:border-r border-neutral-200 bg-white overflow-hidden">
+      {/* Top benchmark scrollable content */}
+      <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar p-6 md:p-8 space-y-6">
         <div>
           <h1 className="text-xs font-semibold tracking-wider text-neutral-900 uppercase">
             BENCHMARK
@@ -124,7 +124,7 @@ export function BenchmarkSidebar({
       </div>
 
       {/* Run button anchored at bottom */}
-      <div className="pt-8 mt-8 border-t border-neutral-200">
+      <div className="flex-shrink-0 p-6 md:p-8 pt-4 md:pt-4 border-t border-neutral-200 bg-white">
         <button
           type="button"
           onClick={onRun}

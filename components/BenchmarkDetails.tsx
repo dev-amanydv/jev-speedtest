@@ -38,7 +38,7 @@ export function BenchmarkDetails({
             BENCHMARK DETAILS
           </p>
 
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto no-scrollbar">
             <table className="w-full text-xs text-left">
               <thead>
                 <tr className="border-b border-neutral-200 text-neutral-400 font-normal">
