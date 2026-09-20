@@ -70,8 +70,8 @@ export const metadata: Metadata = {
     images: [
       {
         url: "/og-banner.png",
-        width: 1200,
-        height: 630,
+        width: 1733,
+        height: 907,
         alt: "JEV Speed Test: LLM vs Jev Benchmark",
         type: "image/png",
       },
