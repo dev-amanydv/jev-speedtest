@@ -148,7 +148,8 @@ export default function BenchmarkPage() {
         if (activeRunIdRef.current !== runId) return;
 
         if (!res.ok) {
-          throw new Error(`HTTP error ${res.status}`);
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || `HTTP error ${res.status}`);
         }
 
         const reader = res.body?.getReader();

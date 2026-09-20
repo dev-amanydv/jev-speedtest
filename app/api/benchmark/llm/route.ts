@@ -204,15 +204,22 @@ Return ONLY the concise classification value.`;
             costPer1k,
           },
         });
-
-        controller.close();
       } catch (err: any) {
         sendEvent({
           type: 'error',
           error: err?.message || 'Sequential LLM benchmark failed',
         });
-        controller.close();
+      } finally {
+        rateLimitResult.release();
+        try {
+          controller.close();
+        } catch {
+          // Stream might already be closed or errored
+        }
       }
+    },
+    cancel() {
+      rateLimitResult.release();
     },
   });
 
@@ -221,6 +228,7 @@ Return ONLY the concise classification value.`;
       'Content-Type': 'text/event-stream; charset=utf-8',
       'Cache-Control': 'no-cache, no-transform',
       Connection: 'keep-alive',
+      ...rateLimitResult.headers,
     },
   });
 }
