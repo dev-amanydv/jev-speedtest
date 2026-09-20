@@ -223,7 +223,7 @@ export default function BenchmarkPage() {
   }, [status]);
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#FAFAFA] text-[#111111]">
+    <div className="h-screen max-h-screen overflow-hidden flex flex-col bg-[#FAFAFA] text-[#111111]">
       {/* Hidden screen reader live region */}
       <div className="sr-only" aria-live="polite" aria-atomic="true">
         {accessibleStatus}
@@ -233,8 +233,8 @@ export default function BenchmarkPage() {
       <TopNav />
 
       {/* Main unified layout: 1/3 Sidebar, 2/3 Benchmark Comparison */}
-      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 md:px-10 pb-16 flex flex-col">
-        <div className="flex-1 flex flex-col md:flex-row border border-neutral-200 bg-white">
+      <main className="flex-1 min-h-0 w-full max-w-7xl mx-auto px-3 sm:px-6 md:px-8 py-3 md:py-4 flex flex-col overflow-hidden">
+        <div className="flex-1 min-h-0 flex flex-col md:flex-row border border-neutral-200 bg-white overflow-hidden shadow-2xs">
           {/* Left Sidebar (33%) */}
           <BenchmarkSidebar
             isRunning={status === 'running'}
@@ -245,44 +245,71 @@ export default function BenchmarkPage() {
           />
 
           {/* Right Benchmark Comparison Area (67%) */}
-          <div className="w-full md:w-2/3 p-6 md:p-8 flex flex-col justify-between">
-            {/* Model columns container */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-neutral-200">
-              {/* Traditional LLM column */}
-              <ModelColumn
-                title="TRADITIONAL LLM"
-                subtitle="Sequential evaluation"
-                variant="traditional"
-                isRunning={isTraditionalRunning}
-                startTime={startTime}
-                totalLatencyMs={traditionalLatencyMs}
-                decisions={BENCHMARK_DECISIONS}
-                results={traditionalResults}
-                error={traditionalError}
-              />
+          <div className="w-full md:w-2/3 h-full min-h-0 relative flex flex-col overflow-hidden bg-white">
+            {/* Steps container */}
+            <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar p-6 md:p-8 pb-16 flex flex-col justify-between">
+              {/* Model columns container */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-neutral-200">
+                {/* Traditional LLM column */}
+                <ModelColumn
+                  title="TRADITIONAL LLM"
+                  subtitle="Sequential evaluation"
+                  variant="traditional"
+                  isRunning={isTraditionalRunning}
+                  startTime={startTime}
+                  totalLatencyMs={traditionalLatencyMs}
+                  decisions={BENCHMARK_DECISIONS}
+                  results={traditionalResults}
+                  error={traditionalError}
+                />
 
-              {/* Jev column */}
-              <ModelColumn
-                title="JEV"
-                subtitle="Single request"
-                variant="jev"
-                isRunning={isJevRunning}
-                startTime={startTime}
-                totalLatencyMs={jevLatencyMs}
-                decisions={BENCHMARK_DECISIONS}
-                results={jevResults}
-                error={jevError}
-              />
+                {/* Jev column */}
+                <ModelColumn
+                  title="JEV"
+                  subtitle="Single request"
+                  variant="jev"
+                  isRunning={isJevRunning}
+                  startTime={startTime}
+                  totalLatencyMs={jevLatencyMs}
+                  decisions={BENCHMARK_DECISIONS}
+                  results={jevResults}
+                  error={jevError}
+                />
+              </div>
+
+              {/* Status message at bottom of steps when not completed */}
+              {status !== 'completed' && (
+                <div className="flex-shrink-0 pt-4 mt-6 border-t border-neutral-200">
+                  {status === 'running' ? (
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
+                      <p className="text-xs text-neutral-600 font-normal select-none">
+                        Evaluating benchmark in real time...
+                      </p>
+                    </div>
+                  ) : status === 'error' ? (
+                    <p className="text-xs text-red-600 font-normal">
+                      Benchmark incomplete due to error. Check individual model output.
+                    </p>
+                  ) : (
+                    <p className="text-xs text-neutral-400 font-normal select-none">
+                      Run the benchmark to compare.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
-            {/* Bottom Result section (Speed, Cost, Match, Expandable Details) */}
-            <ResultSection
-              status={status}
-              traditionalMetrics={traditionalMetrics}
-              jevMetrics={jevMetrics}
-              traditionalResults={traditionalResults}
-              jevResults={jevResults}
-            />
+            {/* Sliding Results Overlay (covers 80% when completed, with slide-down toggle) */}
+            {status === 'completed' && (
+              <ResultSection
+                status={status}
+                traditionalMetrics={traditionalMetrics}
+                jevMetrics={jevMetrics}
+                traditionalResults={traditionalResults}
+                jevResults={jevResults}
+              />
+            )}
           </div>
         </div>
       </main>
