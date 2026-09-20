@@ -3,6 +3,7 @@
 import React from 'react';
 import { LiveTimer } from './LiveTimer';
 import { DecisionRow } from './DecisionRow';
+import { TraditionalLlmIcons, JevTypeSafeAiLogo } from './ProviderLogos';
 import { DecisionDefinition, DecisionId, DecisionResult } from '@/lib/benchmark/types';
 
 interface ModelColumnProps {
@@ -19,7 +20,6 @@ interface ModelColumnProps {
 
 export function ModelColumn({
   title,
-  subtitle,
   variant,
   isRunning,
   startTime,
@@ -32,12 +32,16 @@ export function ModelColumn({
     <div className="flex flex-col flex-1 py-1 px-2 md:px-6">
       {/* Header section */}
       <div className="mb-6">
-        <h2 className="text-xs font-semibold tracking-wider text-neutral-900 uppercase">
-          {title}
-        </h2>
-        <p className="text-xs text-neutral-500 mt-0.5">
-          {subtitle}
-        </p>
+        <div className="flex items-center gap-2.5">
+          <h2 className="text-xs font-semibold tracking-wider text-neutral-900 uppercase">
+            {title}
+          </h2>
+          {variant === 'traditional' ? (
+            <TraditionalLlmIcons />
+          ) : (
+            <JevTypeSafeAiLogo />
+          )}
+        </div>
 
         {/* Live Timer directly underneath */}
         <div className="mt-4">
@@ -52,7 +56,7 @@ export function ModelColumn({
 
       {/* Decision list */}
       <div
-        className="flex flex-col divide-y divide-neutral-100 border-t border-b border-neutral-200"
+        className="flex flex-col divide-y divide-neutral-100 border-t mt-1 border-b border-neutral-200"
         role="list"
       >
         {decisions.map((decision) => {
