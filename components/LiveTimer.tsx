@@ -16,14 +16,14 @@ export function LiveTimer({
   startTime,
   variant = 'traditional',
 }: LiveTimerProps) {
-  const [displayMs, setDisplayMs] = useState<number>(finalLatencyMs ?? 0);
+  const [elapsedMs, setElapsedMs] = useState<number>(0);
   const animFrameRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (isRunning && startTime) {
       const updateClock = () => {
         const elapsed = Math.round(performance.now() - startTime);
-        setDisplayMs(elapsed);
+        setElapsedMs(elapsed);
         animFrameRef.current = requestAnimationFrame(updateClock);
       };
 
@@ -34,14 +34,10 @@ export function LiveTimer({
           cancelAnimationFrame(animFrameRef.current);
         }
       };
-    } else if (!isRunning) {
-      if (finalLatencyMs !== undefined) {
-        setDisplayMs(finalLatencyMs);
-      } else {
-        setDisplayMs(0);
-      }
     }
-  }, [isRunning, startTime, finalLatencyMs]);
+  }, [isRunning, startTime]);
+
+  const displayMs = isRunning ? elapsedMs : (finalLatencyMs ?? 0);
 
   // Accent color for Jev timer, neutral for Traditional LLM
   const colorClasses =

@@ -108,15 +108,26 @@ export function BenchmarkSidebar({
         {!isCustom && activePreset ? (
           <div className="space-y-2 pt-2 border-t border-neutral-200">
             <p className="text-xs font-medium text-neutral-500 mb-3">
-              6 decisions · {activePreset.label}
+              {activePreset.id === 'trading'
+                ? '6 languages · Tech inquiry'
+                : activePreset.id === 'outage'
+                ? '6 root causes · Production outage'
+                : `6 decisions · ${activePreset.label}`}
             </p>
             <div className="space-y-2 font-normal text-xs text-neutral-800">
               {decisions.map((d) => (
-                <div key={d.id} className="flex items-center gap-3">
-                  <span className="font-mono text-neutral-400 select-none w-5">
-                    {d.number}
-                  </span>
-                  <span className="text-neutral-700">{d.name}</span>
+                <div key={d.id} className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="font-mono text-neutral-400 select-none w-5">
+                      {d.number}
+                    </span>
+                    <span className="text-neutral-700">{d.name}</span>
+                  </div>
+                  {d.type === 'percentage' && (
+                    <span className="font-mono text-[10px] text-neutral-400 bg-neutral-50 border border-neutral-200/80 px-1.5 py-0.5 select-none">
+                      % chance
+                    </span>
+                  )}
                 </div>
               ))}
             </div>

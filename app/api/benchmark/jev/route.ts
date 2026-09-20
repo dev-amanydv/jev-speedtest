@@ -10,7 +10,10 @@ import { checkRateLimit } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
-function formatAnswer(val: unknown): string {
+function formatAnswer(val: unknown, type?: string): string {
+  if (type === 'percentage') {
+    return `${val}%`;
+  }
   if (typeof val === 'boolean') {
     return val ? 'Yes' : 'No';
   }
@@ -67,7 +70,7 @@ export async function POST(request: Request) {
           process.env.AI_GATEWAY_API_KEY = apiKey;
         }
 
-        const questionsSchema: Record<string, any> = {};
+        const questionsSchema: Record<string, unknown> = {};
         for (const d of decisions) {
           if (d.type === 'choice') {
             questionsSchema[d.id] = {
@@ -81,11 +84,11 @@ export async function POST(request: Request) {
               instructions: d.prompt,
               criteria: d.criteria as Record<string, string>,
             };
-          } else if (d.type === 'score') {
+          } else if (d.type === 'score' || d.type === 'percentage') {
             questionsSchema[d.id] = {
               type: 'score' as const,
               instructions: d.prompt,
-              criteria: d.criteria as string[],
+              criteria: Array.isArray(d.criteria) ? d.criteria : [String(d.criteria ?? '')],
             };
           }
         }
@@ -98,7 +101,7 @@ export async function POST(request: Request) {
               message: ticketMessage,
             },
           },
-          questions: questionsSchema as any,
+          questions: questionsSchema as Parameters<typeof evaluate>[0]['questions'],
         });
 
         const totalLatencyMs = Math.round(performance.now() - benchmarkStart);
@@ -106,23 +109,28 @@ export async function POST(request: Request) {
         const answers: Record<string, string | number | boolean> = {};
         const formattedAnswers: Record<string, string> = {};
 
+        const resultAnswers = result.answers as Record<string, Record<string, unknown>> | undefined;
+
         for (const d of decisions) {
-          const ansObj = (result.answers as Record<string, any>)?.[d.id];
+          const ansObj = resultAnswers?.[d.id];
           let val: string | number | boolean = d.expectedAnswer ?? '';
           if (ansObj) {
             if (typeof ansObj.choice === 'string') val = ansObj.choice;
-            else if (typeof ansObj.probability === 'number') val = ansObj.probability >= 0.5;
+            else if (typeof ansObj.probability === 'number') {
+              val = d.type === 'percentage' ? Math.round(ansObj.probability * 100) : ansObj.probability >= 0.5;
+            }
             else if (typeof ansObj.score === 'number') val = ansObj.score;
-            else if (typeof ansObj.value !== 'undefined') val = ansObj.value;
+            else if (typeof ansObj.value !== 'undefined') val = ansObj.value as string | number | boolean;
           }
           answers[d.id] = val;
-          formattedAnswers[d.id] = formatAnswer(val);
+          formattedAnswers[d.id] = formatAnswer(val, d.type);
         }
 
+        const usageObj = result as { usage?: { inputTokens?: number; outputTokens?: number } };
         const inputTokens =
-          (result as any)?.usage?.inputTokens ??
+          usageObj?.usage?.inputTokens ??
           Math.max(40, Math.round(ticketMessage.split(/\s+/).length * 1.3) + 45);
-        const outputTokens = (result as any)?.usage?.outputTokens ?? 0;
+        const outputTokens = usageObj?.usage?.outputTokens ?? 0;
         const costPer1k = calculateCost({
           provider: 'jev',
           inputTokens,
@@ -150,10 +158,10 @@ export async function POST(request: Request) {
             headers: rateLimitResult.headers,
           }
         );
-      } catch (liveErr: any) {
+      } catch (liveErr: unknown) {
         console.warn(
           'Jev live evaluation failed, falling back to simulated benchmark:',
-          liveErr?.message || liveErr
+          liveErr instanceof Error ? liveErr.message : liveErr
         );
       }
     }
@@ -170,7 +178,7 @@ export async function POST(request: Request) {
 
     const formattedAnswers: Record<string, string> = {};
     for (const d of decisions) {
-      formattedAnswers[d.id] = formatAnswer(classified[d.id]);
+      formattedAnswers[d.id] = formatAnswer(classified[d.id], d.type);
     }
 
     const inputTokens = Math.max(40, Math.round(ticketMessage.split(/\s+/).length * 1.3) + 45);
@@ -202,11 +210,11 @@ export async function POST(request: Request) {
         headers: rateLimitResult.headers,
       }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     return NextResponse.json(
       {
         success: false,
-        error: error?.message || 'Failed to complete Jev evaluation',
+        error: error instanceof Error ? error.message : 'Failed to complete Jev evaluation',
       },
       {
         status: 500,

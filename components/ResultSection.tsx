@@ -2,8 +2,9 @@
 
 import React, { useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
-import { BenchmarkMetrics, DecisionResult } from '@/lib/benchmark/types';
+import { BenchmarkMetrics, DecisionDefinition, DecisionResult } from '@/lib/benchmark/types';
 import { formatCost, formatNumber } from '@/lib/benchmark/pricing';
+import { PresetId } from '@/lib/benchmark/questions';
 import { BenchmarkDetails } from './BenchmarkDetails';
 
 interface ResultSectionProps {
@@ -12,6 +13,8 @@ interface ResultSectionProps {
   jevMetrics?: BenchmarkMetrics;
   traditionalResults: Record<string, DecisionResult>;
   jevResults: Record<string, DecisionResult>;
+  decisions?: DecisionDefinition[];
+  activePresetId?: PresetId | null;
 }
 
 export function ResultSection({
@@ -20,6 +23,8 @@ export function ResultSection({
   jevMetrics,
   traditionalResults,
   jevResults,
+  decisions = [],
+  activePresetId,
 }: ResultSectionProps) {
   const [isCovered, setIsCovered] = useState(true);
 
@@ -53,14 +58,36 @@ export function ResultSection({
   const isJevFaster = jevMs > 0 && traditionalMs >= jevMs;
   const multiplier = jevMs > 0 ? (traditionalMs / jevMs).toFixed(1) : '1.0';
 
-  // Calculate matching decisions
+  const hasPercentageDecisions = decisions.some((d) => d.type === 'percentage');
+
+  // Calculate matching / aligned decisions
   const decisionKeys = Object.keys(traditionalResults);
   let matchedCount = 0;
-  for (const key of decisionKeys) {
-    const tAns = traditionalResults[key]?.formattedAnswer;
-    const jAns = jevResults[key]?.formattedAnswer;
-    if (tAns && jAns && tAns.toLowerCase() === jAns.toLowerCase()) {
-      matchedCount++;
+
+  if (hasPercentageDecisions && decisions.length > 0) {
+    for (const d of decisions) {
+      const tAns = traditionalResults[d.id];
+      const jAns = jevResults[d.id];
+      const tVal =
+        typeof tAns?.rawAnswer === 'number'
+          ? tAns.rawAnswer
+          : parseInt(String(tAns?.formattedAnswer || '0').replace('%', ''), 10) || 0;
+      const jVal =
+        typeof jAns?.rawAnswer === 'number'
+          ? jAns.rawAnswer
+          : parseInt(String(jAns?.formattedAnswer || '0').replace('%', ''), 10) || 0;
+      // Consider aligned if within ±12%
+      if (Math.abs(tVal - jVal) <= 12) {
+        matchedCount++;
+      }
+    }
+  } else {
+    for (const key of decisionKeys) {
+      const tAns = traditionalResults[key]?.formattedAnswer;
+      const jAns = jevResults[key]?.formattedAnswer;
+      if (tAns && jAns && tAns.toLowerCase() === jAns.toLowerCase()) {
+        matchedCount++;
+      }
     }
   }
 
@@ -95,12 +122,14 @@ export function ResultSection({
 
           {/* Scrollable Results Content Box with hidden scrollbar */}
           <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar p-6 md:p-8 space-y-6">
-            {/* Neutral match indicator */}
+            {/* Match / Alignment indicator */}
             <div className="flex items-center gap-2 text-xs text-neutral-500 font-normal">
               <span className="font-mono text-neutral-700">
-                {matchedCount} / {decisionKeys.length}
+                {matchedCount} / {decisions.length || decisionKeys.length}
               </span>
-              <span>decisions matched</span>
+              <span>
+                {hasPercentageDecisions ? 'recommendations aligned (within ±12%)' : 'decisions matched'}
+              </span>
             </div>
 
             {/* Main speed result - Largest visual element */}
@@ -117,6 +146,83 @@ export function ResultSection({
                 {formatNumber(jevMs)} ms vs {formatNumber(traditionalMs)} ms
               </p>
             </div>
+
+            {/* Personalized Recommendation / Probability Breakdown Section */}
+            {hasPercentageDecisions && decisions.length > 0 && (
+              <div className="pt-4 border-t border-neutral-100 max-w-lg space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-[11px] font-semibold text-neutral-900 uppercase tracking-wider">
+                    {activePresetId === 'trading'
+                      ? 'LANGUAGE RECOMMENDATION BREAKDOWN'
+                      : activePresetId === 'outage'
+                      ? 'ROOT CAUSE PROBABILITY BREAKDOWN'
+                      : 'EVALUATION SCORE BREAKDOWN'}
+                  </p>
+                  <div className="flex items-center gap-3 text-[10px] font-mono text-neutral-500 select-none">
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-neutral-800" /> Traditional LLM
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-blue-600" /> Jev
+                    </span>
+                  </div>
+                </div>
+
+                <div className="divide-y divide-neutral-100 border border-neutral-200 bg-neutral-50/50 p-3">
+                  {decisions.map((d) => {
+                    const tAns = traditionalResults[d.id];
+                    const jAns = jevResults[d.id];
+                    const tVal =
+                      typeof tAns?.rawAnswer === 'number'
+                        ? tAns.rawAnswer
+                        : parseInt(String(tAns?.formattedAnswer || '0').replace('%', ''), 10) || 0;
+                    const jVal =
+                      typeof jAns?.rawAnswer === 'number'
+                        ? jAns.rawAnswer
+                        : parseInt(String(jAns?.formattedAnswer || '0').replace('%', ''), 10) || 0;
+
+                    return (
+                      <div key={d.id} className="py-2.5 first:pt-0 last:pb-0 space-y-1.5">
+                        <div className="flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-neutral-400 select-none text-[11px] w-4">
+                              {d.number}
+                            </span>
+                            <span className="font-medium text-neutral-900">{d.name}</span>
+                          </div>
+                          <div className="flex items-center gap-3 font-mono text-xs tabular-nums">
+                            <span className="text-neutral-700 font-medium">
+                              <span className="text-[10px] text-neutral-400 mr-1">LLM</span>
+                              {tVal}%
+                            </span>
+                            <span className="text-blue-600 font-semibold">
+                              <span className="text-[10px] text-blue-400 mr-1">JEV</span>
+                              {jVal}%
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Comparison Bars */}
+                        <div className="grid grid-cols-2 gap-2 pt-0.5">
+                          <div className="h-1.5 bg-neutral-200/80 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-neutral-800 rounded-full transition-all duration-700"
+                              style={{ width: `${tVal}%` }}
+                            />
+                          </div>
+                          <div className="h-1.5 bg-neutral-200/80 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-blue-600 rounded-full transition-all duration-700"
+                              style={{ width: `${jVal}%` }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Cost comparison */}
             <div className="pt-4 border-t border-neutral-100 max-w-sm">

@@ -62,9 +62,13 @@ export function ModelColumn({
               key={decision.id}
               name={decision.name}
               status={res.status}
+              type={decision.type}
+              unit={decision.unit}
+              rawAnswer={res.rawAnswer}
               formattedAnswer={res.formattedAnswer}
               latencyMs={res.latencyMs}
               showLatency={variant === 'traditional'}
+              variant={variant}
             />
           );
         })}

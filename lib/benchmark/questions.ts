@@ -1,4 +1,4 @@
-import { DecisionDefinition, DecisionId } from './types';
+import { DecisionDefinition } from './types';
 
 export type PresetId = 'billing' | 'trading' | 'outage';
 
@@ -106,187 +106,160 @@ export const BENCHMARK_PRESETS: BenchmarkPreset[] = [
   {
     id: 'trading',
     label: 'Tech inquiry',
-    title: 'Architecture & stack evaluation',
+    title: 'Language recommendation & suitability',
     text: 'What is the best language and stack to build a low latency trading webapp backend?',
     decisions: [
       {
-        id: 'domain',
+        id: 'rust',
         number: '01',
-        name: 'Domain',
-        type: 'choice',
-        prompt: 'Identify the primary engineering domain of the request.',
-        options: ['systems', 'web', 'database', 'devops'],
-        criteria: {
-          systems: 'Low-latency, systems programming, finance, or high-performance networking.',
-          web: 'Standard CRUD web applications and CMS.',
-          database: 'Database indexing and storage engines.',
-          devops: 'Infrastructure, containers, and deployment pipelines.',
-        },
-        expectedAnswer: 'systems',
-      },
-      {
-        id: 'zero_gc',
-        number: '02',
-        name: 'Zero-GC',
-        type: 'boolean',
-        prompt: 'Does low-latency trading require zero garbage collection or predictable memory pauses?',
-        criteria: {
-          true: 'Requires manual memory management or zero GC pauses.',
-          false: 'Standard runtime garbage collection is acceptable.',
-        },
-        expectedAnswer: true,
-      },
-      {
-        id: 'language',
-        number: '03',
-        name: 'Language',
-        type: 'choice',
-        prompt: 'Select the top recommended language for this architecture.',
-        options: ['rust', 'cpp', 'go', 'java'],
-        criteria: {
-          rust: 'Memory safety without garbage collection and modern concurrency.',
-          cpp: 'Legacy high-frequency trading industry standard with raw pointer performance.',
-          go: 'Fast development with lightweight goroutines but has GC pauses.',
-          java: 'Enterprise finance standard with specialized low-latency JVM tuning.',
-        },
-        expectedAnswer: 'rust',
-      },
-      {
-        id: 'transport',
-        number: '04',
-        name: 'Transport',
-        type: 'choice',
-        prompt: 'Determine the optimal transport protocol for webapp streaming market data.',
-        options: ['websockets', 'fix', 'grpc', 'rest'],
-        criteria: {
-          websockets: 'Full-duplex low-overhead streaming directly to web browsers.',
-          fix: 'Financial Information eXchange protocol between broker backends.',
-          grpc: 'Binary streaming over HTTP/2 between internal microservices.',
-          rest: 'Standard request-response HTTP endpoints.',
-        },
-        expectedAnswer: 'websockets',
-      },
-      {
-        id: 'latency_tier',
-        number: '05',
-        name: 'Latency tier',
-        type: 'score',
-        prompt: 'Score the target latency stringency from 1 (relaxed >100ms) to 4 (ultra-low <1ms).',
-        scale: [1, 2, 3, 4],
+        name: 'Rust',
+        type: 'percentage',
+        unit: '%',
+        prompt: 'Evaluate Rust suitability (0-100%) for building a low-latency trading webapp backend.',
         criteria: [
-          'standard web: >100ms ordinary response times',
-          'interactive: 10-50ms responsive UI interaction',
-          'sub-millisecond: 1-10ms fast processing',
-          'ultra-low: <1ms predictable microsecond execution',
+          'Zero-cost abstractions, zero garbage collection pauses, compile-time memory safety, predictable microsecond execution.',
         ],
-        expectedAnswer: 4,
+        expectedAnswer: 92,
       },
       {
-        id: 'concurrency',
+        id: 'cpp',
+        number: '02',
+        name: 'C++',
+        type: 'percentage',
+        unit: '%',
+        prompt: 'Evaluate C++ suitability (0-100%) for building a low-latency trading webapp backend.',
+        criteria: [
+          'Industry benchmark for high-frequency trading engines, direct cache and hardware manipulation, lack of memory safety.',
+        ],
+        expectedAnswer: 86,
+      },
+      {
+        id: 'go',
+        number: '03',
+        name: 'Go',
+        type: 'percentage',
+        unit: '%',
+        prompt: 'Evaluate Go suitability (0-100%) for building a low-latency trading webapp backend.',
+        criteria: [
+          'Excellent concurrency with lightweight goroutines and fast networking, but runtime GC causes occasional millisecond jitter.',
+        ],
+        expectedAnswer: 64,
+      },
+      {
+        id: 'java',
+        number: '04',
+        name: 'Java',
+        type: 'percentage',
+        unit: '%',
+        prompt: 'Evaluate Java suitability (0-100%) for building a low-latency trading webapp backend.',
+        criteria: [
+          'Established enterprise finance backbone with LMAX Disruptor and low-latency GC (ZGC/Shenandoah), but higher memory footprint.',
+        ],
+        expectedAnswer: 48,
+      },
+      {
+        id: 'typescript',
+        number: '05',
+        name: 'TypeScript',
+        type: 'percentage',
+        unit: '%',
+        prompt: 'Evaluate TypeScript/Node.js suitability (0-100%) for building a low-latency trading webapp backend.',
+        criteria: [
+          'Rapid development and native WebSocket browser protocol handling, but single-threaded event loop bottlenecks high-throughput matching engines.',
+        ],
+        expectedAnswer: 28,
+      },
+      {
+        id: 'python',
         number: '06',
-        name: 'Concurrency',
-        type: 'choice',
-        prompt: 'Select the primary concurrency model.',
-        options: ['kernel_bypass', 'event_loop', 'multithreaded', 'distributed'],
-        criteria: {
-          kernel_bypass: 'Direct hardware NIC polling avoiding OS networking stack.',
-          event_loop: 'Single-threaded non-blocking event loop.',
-          multithreaded: 'OS threads with thread pinning and lock-free rings.',
-          distributed: 'Queue-based distributed message processing.',
-        },
-        expectedAnswer: 'kernel_bypass',
+        name: 'Python',
+        type: 'percentage',
+        unit: '%',
+        prompt: 'Evaluate Python suitability (0-100%) for building a low-latency trading webapp backend.',
+        criteria: [
+          'Dominates quantitative modeling and research backtesting, but Global Interpreter Lock (GIL) and runtime overhead make it unsuitable for execution cores.',
+        ],
+        expectedAnswer: 16,
       },
     ],
   },
   {
     id: 'outage',
     label: 'Production outage',
-    title: 'Incident response triage',
+    title: 'Incident root cause probability',
     text: 'Production API gateway is returning 502 Bad Gateway for all cluster users after the deployment.',
     decisions: [
       {
-        id: 'incident_type',
+        id: 'bad_deployment',
         number: '01',
-        name: 'Incident type',
-        type: 'choice',
-        prompt: 'Classify the incident category.',
-        options: ['outage', 'degradation', 'security', 'bug'],
-        criteria: {
-          outage: 'Complete service failure or blocking gateway errors for all users.',
-          degradation: 'Partial performance slowdown or elevated latency.',
-          security: 'Unauthorized access or suspected vulnerability breach.',
-          bug: 'Non-blocking logic defect or UI display error.',
-        },
-        expectedAnswer: 'outage',
-      },
-      {
-        id: 'rollback_needed',
-        number: '02',
-        name: 'Rollback needed',
-        type: 'boolean',
-        prompt: 'Is an immediate deployment rollback recommended?',
-        criteria: {
-          true: 'Incident triggered directly after deployment, rollback immediately.',
-          false: 'Issue is external or unrelated to recent release.',
-        },
-        expectedAnswer: true,
-      },
-      {
-        id: 'severity',
-        number: '03',
-        name: 'Severity',
-        type: 'choice',
-        prompt: 'Determine the incident severity level.',
-        options: ['sev-1', 'sev-2', 'sev-3', 'sev-4'],
-        criteria: {
-          'sev-1': 'Critical business-stopping outage affecting all production users.',
-          'sev-2': 'Major degradation with core functionality impaired.',
-          'sev-3': 'Moderate issue affecting a subset of non-critical features.',
-          'sev-4': 'Minor informational or cosmetic issue.',
-        },
-        expectedAnswer: 'sev-1',
-      },
-      {
-        id: 'page_oncall',
-        number: '04',
-        name: 'Page on-call',
-        type: 'boolean',
-        prompt: 'Should the on-call incident response team be paged immediately?',
-        criteria: {
-          true: 'Page primary and secondary on-call leads right now.',
-          false: 'Ticket can wait for regular business hours.',
-        },
-        expectedAnswer: true,
-      },
-      {
-        id: 'impact_scope',
-        number: '05',
-        name: 'Impact scope',
-        type: 'score',
-        prompt: 'Score the customer impact scope from 1 (isolated) to 4 (widespread).',
-        scale: [1, 2, 3, 4],
+        name: 'Faulty deployment',
+        type: 'percentage',
+        unit: '%',
+        prompt: 'Assess probability (0-100%) that the outage was caused by a faulty deployment regression or crashing container.',
         criteria: [
-          'isolated: single user or internal staging environment',
-          'limited: minor fraction of non-critical requests failing',
-          'significant: substantial subset of customers impacted',
-          'widespread: total outage across all production clusters',
+          'Failure coincided immediately after release rollout, indicating container startup crashloop or binary incompatibility.',
         ],
-        expectedAnswer: 4,
+        expectedAnswer: 94,
       },
       {
-        id: 'first_action',
+        id: 'conn_pool',
+        number: '02',
+        name: 'Connection pool exhaustion',
+        type: 'percentage',
+        unit: '%',
+        prompt: 'Assess probability (0-100%) that the gateway exhausted upstream connections to downstream microservices.',
+        criteria: [
+          'Gateway 502 Bad Gateway is generated when socket connect timeouts occur on upstream pool exhaustion.',
+        ],
+        expectedAnswer: 76,
+      },
+      {
+        id: 'oom_kill',
+        number: '03',
+        name: 'Memory leak (OOM)',
+        type: 'percentage',
+        unit: '%',
+        prompt: 'Assess probability (0-100%) that gateway pods were terminated by the OS kernel out-of-memory killer.',
+        criteria: [
+          'Memory surge on cold start or leaky initialization causes cgroup termination, dropping active proxies.',
+        ],
+        expectedAnswer: 46,
+      },
+      {
+        id: 'ingress_routing',
+        number: '04',
+        name: 'Ingress / DNS routing',
+        type: 'percentage',
+        unit: '%',
+        prompt: 'Assess probability (0-100%) of service mesh misconfiguration or upstream endpoint DNS resolution failure.',
+        criteria: [
+          'Ingress controller fails to resolve cluster internal service endpoints after pod IP reassignments.',
+        ],
+        expectedAnswer: 38,
+      },
+      {
+        id: 'db_deadlock',
+        number: '05',
+        name: 'Database deadlock',
+        type: 'percentage',
+        unit: '%',
+        prompt: 'Assess probability (0-100%) that a database transaction deadlock is locking downstream workers.',
+        criteria: [
+          'Long-running migration or exclusive lock halts processing, backing up incoming gateway queues.',
+        ],
+        expectedAnswer: 22,
+      },
+      {
+        id: 'traffic_surge',
         number: '06',
-        name: 'First action',
-        type: 'choice',
-        prompt: 'Select the immediate first remediation action.',
-        options: ['rollback', 'restart', 'failover', 'throttle'],
-        criteria: {
-          rollback: 'Revert deployment to previous healthy release artifact.',
-          restart: 'Restart gateway pods without changing deployment.',
-          failover: 'Route traffic to alternative secondary cloud region.',
-          throttle: 'Enable aggressive rate-limiting on incoming requests.',
-        },
-        expectedAnswer: 'rollback',
+        name: 'DDoS / Traffic spike',
+        type: 'percentage',
+        unit: '%',
+        prompt: 'Assess probability (0-100%) that external volumetric traffic flooded the gateway beyond provisioned limits.',
+        criteria: [
+          'Unusual ingress traffic volume or DDoS flooding coincident with deployment window.',
+        ],
+        expectedAnswer: 11,
       },
     ],
   },
@@ -379,6 +352,142 @@ export function classifyDecisions(
   const lower = input.toLowerCase();
   const results: Record<string, string | number | boolean> = {};
 
+  // Check if this is the language evaluation set
+  const isLanguageSet = decisions.some((d) => d.id === 'rust' || d.id === 'cpp' || d.id === 'go');
+  // Check if this is the outage root cause set
+  const isOutageSet = decisions.some((d) => d.id === 'bad_deployment' || d.id === 'conn_pool');
+
+  if (isLanguageSet) {
+    let scores: Record<string, number> = {
+      rust: 72,
+      cpp: 68,
+      go: 62,
+      java: 50,
+      typescript: 42,
+      python: 35,
+    };
+
+    if (
+      lower.includes('low latency') ||
+      lower.includes('trading') ||
+      lower.includes('hft') ||
+      lower.includes('fastest') ||
+      lower.includes('zero gc') ||
+      lower.includes('realtime')
+    ) {
+      scores = { rust: 92, cpp: 86, go: 64, java: 48, typescript: 28, python: 16 };
+    } else if (
+      lower.includes('ai') ||
+      lower.includes('ml') ||
+      lower.includes('machine learning') ||
+      lower.includes('data') ||
+      lower.includes('model') ||
+      lower.includes('llm')
+    ) {
+      scores = { python: 96, rust: 56, cpp: 50, go: 42, typescript: 38, java: 25 };
+    } else if (
+      lower.includes('web') ||
+      lower.includes('frontend') ||
+      lower.includes('fullstack') ||
+      lower.includes('mvp') ||
+      lower.includes('crud') ||
+      lower.includes('browser')
+    ) {
+      scores = { typescript: 94, go: 84, python: 78, java: 52, rust: 40, cpp: 18 };
+    } else if (
+      lower.includes('enterprise') ||
+      lower.includes('microservice') ||
+      lower.includes('backend') ||
+      lower.includes('concurrency')
+    ) {
+      scores = { go: 90, java: 84, rust: 80, typescript: 68, python: 44, cpp: 38 };
+    }
+
+    for (const d of decisions) {
+      results[d.id] = scores[d.id] ?? d.expectedAnswer ?? 50;
+    }
+    return results;
+  }
+
+  if (isOutageSet) {
+    let scores: Record<string, number> = {
+      bad_deployment: 65,
+      conn_pool: 60,
+      oom_kill: 45,
+      ingress_routing: 40,
+      db_deadlock: 30,
+      traffic_surge: 20,
+    };
+
+    if (
+      lower.includes('deploy') ||
+      lower.includes('release') ||
+      lower.includes('version') ||
+      lower.includes('rollback') ||
+      lower.includes('502')
+    ) {
+      scores = {
+        bad_deployment: 94,
+        conn_pool: 76,
+        oom_kill: 46,
+        ingress_routing: 38,
+        db_deadlock: 22,
+        traffic_surge: 11,
+      };
+    } else if (
+      lower.includes('db') ||
+      lower.includes('database') ||
+      lower.includes('sql') ||
+      lower.includes('postgres') ||
+      lower.includes('query') ||
+      lower.includes('lock')
+    ) {
+      scores = {
+        db_deadlock: 95,
+        conn_pool: 88,
+        oom_kill: 42,
+        bad_deployment: 35,
+        ingress_routing: 20,
+        traffic_surge: 12,
+      };
+    } else if (
+      lower.includes('oom') ||
+      lower.includes('memory') ||
+      lower.includes('leak') ||
+      lower.includes('kill') ||
+      lower.includes('cgroup')
+    ) {
+      scores = {
+        oom_kill: 96,
+        bad_deployment: 70,
+        conn_pool: 52,
+        db_deadlock: 24,
+        ingress_routing: 18,
+        traffic_surge: 10,
+      };
+    } else if (
+      lower.includes('ddos') ||
+      lower.includes('traffic') ||
+      lower.includes('spike') ||
+      lower.includes('flood') ||
+      lower.includes('attack')
+    ) {
+      scores = {
+        traffic_surge: 95,
+        ingress_routing: 72,
+        conn_pool: 64,
+        bad_deployment: 20,
+        oom_kill: 28,
+        db_deadlock: 14,
+      };
+    }
+
+    for (const d of decisions) {
+      results[d.id] = scores[d.id] ?? d.expectedAnswer ?? 50;
+    }
+    return results;
+  }
+
   for (const d of decisions) {
     if (d.type === 'boolean') {
       const isAffirmative =
@@ -394,7 +503,12 @@ export function classifyDecisions(
       results[d.id] = isAffirmative;
     } else if (d.type === 'score') {
       let score = 2;
-      if (lower.includes('outage') || lower.includes('down') || lower.includes('502') || lower.includes('critical')) {
+      if (
+        lower.includes('outage') ||
+        lower.includes('down') ||
+        lower.includes('502') ||
+        lower.includes('critical')
+      ) {
         score = 4;
       } else if (lower.includes('urgent') || lower.includes('high')) {
         score = 3;
@@ -402,6 +516,8 @@ export function classifyDecisions(
         score = 1;
       }
       results[d.id] = score;
+    } else if (d.type === 'percentage') {
+      results[d.id] = typeof d.expectedAnswer === 'number' ? d.expectedAnswer : 50;
     } else {
       // choice type
       if (d.options && d.options.length > 0) {

@@ -393,6 +393,8 @@ export default function BenchmarkPage() {
                 jevMetrics={jevMetrics}
                 traditionalResults={traditionalResults}
                 jevResults={jevResults}
+                decisions={currentDecisions}
+                activePresetId={activePresetId}
               />
             )}
           </div>

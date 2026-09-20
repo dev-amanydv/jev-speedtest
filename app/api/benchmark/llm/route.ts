@@ -10,7 +10,10 @@ import { checkRateLimit } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
-function formatAnswer(val: unknown): string {
+function formatAnswer(val: unknown, type?: string): string {
+  if (type === 'percentage') {
+    return `${val}%`;
+  }
   if (typeof val === 'boolean') {
     return val ? 'Yes' : 'No';
   }
@@ -64,7 +67,15 @@ export async function POST(request: Request) {
   const hasGemini = !isPlaceholderOrEmpty(geminiApiKey);
   const hasGroq = !isPlaceholderOrEmpty(groqApiKey);
 
-  let activeModel: any = null;
+interface InvokableModel {
+  invoke: (prompt: string) => Promise<{
+    content: unknown;
+    usage_metadata?: { input_tokens?: number; output_tokens?: number };
+    response_metadata?: { tokenUsage?: { promptTokens?: number; completionTokens?: number } };
+  }>;
+}
+
+  let activeModel: InvokableModel | null = null;
   let modelDisplayName = `${geminiModelName} (fallback: groq)`;
 
   if (hasGemini && hasGroq) {
@@ -78,35 +89,36 @@ export async function POST(request: Request) {
     });
     activeModel = geminiModel.withFallbacks({
       fallbacks: [groqModel],
-    });
+    }) as unknown as InvokableModel;
     modelDisplayName = `${geminiModelName} (fallback: ${groqModelName})`;
   } else if (hasGemini) {
     activeModel = new ChatGoogleGenerativeAI({
       model: geminiModelName,
       apiKey: geminiApiKey,
-    });
+    }) as unknown as InvokableModel;
     modelDisplayName = geminiModelName;
   } else if (hasGroq) {
     activeModel = new ChatGroq({
       model: groqModelName,
       apiKey: groqApiKey,
-    });
+    }) as unknown as InvokableModel;
     modelDisplayName = `${groqModelName} (Groq)`;
   }
 
+  const modelToInvoke = activeModel;
   const benchmarkStart = performance.now();
 
   const stream = new ReadableStream({
     async start(controller) {
       const encoder = new TextEncoder();
-      const sendEvent = (data: any) => {
+      const sendEvent = (data: unknown) => {
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
       };
 
       try {
         let totalInputTokens = 0;
         let totalOutputTokens = 0;
-        const stepResults: Record<string, any> = {};
+        const stepResults: Record<string, { raw: string | number | boolean; formatted: string; latencyMs: number }> = {};
 
         const promptClassification = classifyDecisions(ticketMessage, decisions, presetId);
 
@@ -117,14 +129,25 @@ export async function POST(request: Request) {
           });
 
           const stepStart = performance.now();
-          let rawAnswer: any = promptClassification[decision.id] ?? decision.expectedAnswer;
+          let rawAnswer: string | number | boolean = promptClassification[decision.id] ?? decision.expectedAnswer ?? '';
           let stepInputTokens = Math.max(180, Math.round(ticketMessage.split(/\s+/).length * 1.3) + 210);
           let stepOutputTokens = 12;
 
-          if (activeModel) {
+          if (modelToInvoke) {
             try {
               // Real LLM call through configured Gemini model with Groq fallback
-              const prompt = `You are an automated triage and classification engine.
+              let prompt = '';
+              if (decision.type === 'percentage') {
+                prompt = `You are an automated evaluation engine.
+Context:
+${ticketMessage}
+
+Task: ${decision.prompt}
+Criteria: ${JSON.stringify(decision.criteria || '')}
+
+Return ONLY an integer number from 0 to 100 representing the suitability or probability percentage (e.g. 84). Do not write anything else.`;
+              } else {
+                prompt = `You are an automated triage and classification engine.
 Context:
 Message: ${ticketMessage}
 
@@ -132,8 +155,9 @@ Task: ${decision.prompt}
 Criteria / options: ${JSON.stringify(decision.criteria || decision.options)}
 
 Return ONLY the concise classification value.`;
+              }
 
-              const response = await activeModel.invoke(prompt);
+              const response = await modelToInvoke.invoke(prompt);
 
               // Extract text content from AIMessage
               let text = '';
@@ -141,8 +165,8 @@ Return ONLY the concise classification value.`;
                 text = response.content;
               } else if (Array.isArray(response.content)) {
                 text = response.content
-                  .map((part: any) =>
-                    typeof part === 'string' ? part : part?.text || ''
+                  .map((part: unknown) =>
+                    typeof part === 'string' ? part : (part as { text?: string })?.text || ''
                   )
                   .join('');
               } else {
@@ -150,18 +174,23 @@ Return ONLY the concise classification value.`;
               }
 
               // Extract usage tokens if reported by provider
-              const usage = (response as any).usage_metadata;
+              const usage = response.usage_metadata;
               if (usage) {
                 stepInputTokens = usage.input_tokens ?? stepInputTokens;
                 stepOutputTokens = usage.output_tokens ?? stepOutputTokens;
-              } else if ((response as any).response_metadata?.tokenUsage) {
-                const tu = (response as any).response_metadata.tokenUsage;
+              } else if (response.response_metadata?.tokenUsage) {
+                const tu = response.response_metadata.tokenUsage;
                 stepInputTokens = tu.promptTokens ?? stepInputTokens;
                 stepOutputTokens = tu.completionTokens ?? stepOutputTokens;
               }
 
               const cleaned = text.trim().toLowerCase();
-              if (decision.type === 'boolean') {
+              if (decision.type === 'percentage') {
+                const match = cleaned.match(/\b\d{1,3}\b/);
+                rawAnswer = match
+                  ? Math.min(100, Math.max(0, parseInt(match[0], 10)))
+                  : (decision.expectedAnswer ?? 50);
+              } else if (decision.type === 'boolean') {
                 rawAnswer = cleaned.includes('yes') || cleaned.includes('true');
               } else if (decision.type === 'score') {
                 const match = cleaned.match(/[1-4]/);
@@ -170,7 +199,7 @@ Return ONLY the concise classification value.`;
                 const found = decision.options?.find((opt) =>
                   cleaned.includes(opt.toLowerCase())
                 );
-                rawAnswer = found || decision.expectedAnswer;
+                rawAnswer = found || decision.expectedAnswer || '';
               }
             } catch (err) {
               console.error(`LLM decision ${decision.id} live call failed, falling back to simulated delay:`, err);
@@ -188,7 +217,7 @@ Return ONLY the concise classification value.`;
           totalInputTokens += stepInputTokens;
           totalOutputTokens += stepOutputTokens;
 
-          const formatted = formatAnswer(rawAnswer);
+          const formatted = formatAnswer(rawAnswer, decision.type);
           stepResults[decision.id] = {
             raw: rawAnswer,
             formatted,
@@ -225,10 +254,10 @@ Return ONLY the concise classification value.`;
             costPer1k,
           },
         });
-      } catch (err: any) {
+      } catch (err: unknown) {
         sendEvent({
           type: 'error',
-          error: err?.message || 'Sequential LLM benchmark failed',
+          error: err instanceof Error ? err.message : 'Sequential LLM benchmark failed',
         });
       } finally {
         rateLimitResult.release();
