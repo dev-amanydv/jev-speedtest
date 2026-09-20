@@ -120,6 +120,7 @@ export default function RootLayout({
       </head>
       <body className="h-full overflow-hidden flex flex-col bg-[#FAFAFA] text-[#111111]">
         {children}
+        <Analytics />
       </body>
     </html>
   );
