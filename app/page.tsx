@@ -115,7 +115,10 @@ export default function BenchmarkPage() {
         setJevLatencyMs(data.totalLatencyMs);
         setJevMetrics(data.metrics);
 
-        const newJevResults: Record<DecisionId, DecisionResult> = {} as any;
+        const newJevResults: Record<DecisionId, DecisionResult> = {} as Record<
+          DecisionId,
+          DecisionResult
+        >;
         for (const d of BENCHMARK_DECISIONS) {
           newJevResults[d.id] = {
             id: d.id,
@@ -125,11 +128,11 @@ export default function BenchmarkPage() {
           };
         }
         setJevResults(newJevResults);
-      } catch (err: any) {
-        if (err.name === 'AbortError') return;
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'AbortError') return;
         if (activeRunIdRef.current !== runId) return;
         setIsJevRunning(false);
-        setJevError(err.message || 'Jev benchmark failed');
+        setJevError(err instanceof Error ? err.message : 'Jev benchmark failed');
       }
     })();
 
@@ -205,11 +208,13 @@ export default function BenchmarkPage() {
             }
           }
         }
-      } catch (err: any) {
-        if (err.name === 'AbortError') return;
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'AbortError') return;
         if (activeRunIdRef.current !== runId) return;
         setIsTraditionalRunning(false);
-        setTraditionalError(err.message || 'Traditional LLM failed');
+        setTraditionalError(
+          err instanceof Error ? err.message : 'Traditional LLM failed'
+        );
       }
     })();
 
@@ -303,6 +308,7 @@ export default function BenchmarkPage() {
             {/* Sliding Results Overlay (covers 80% when completed, with slide-down toggle) */}
             {status === 'completed' && (
               <ResultSection
+                key={startTime}
                 status={status}
                 traditionalMetrics={traditionalMetrics}
                 jevMetrics={jevMetrics}

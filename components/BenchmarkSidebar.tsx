@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ArrowRight, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowRight, ChevronUp } from 'lucide-react';
 import { BENCHMARK_DECISIONS, BENCHMARK_INPUT_TEXT } from '@/lib/benchmark/questions';
 
 interface BenchmarkSidebarProps {

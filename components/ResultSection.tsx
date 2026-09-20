@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { BenchmarkMetrics, DecisionResult } from '@/lib/benchmark/types';
 import { formatCost, formatNumber } from '@/lib/benchmark/pricing';
@@ -22,13 +22,6 @@ export function ResultSection({
   jevResults,
 }: ResultSectionProps) {
   const [isCovered, setIsCovered] = useState(true);
-
-  // Automatically cover 80% when new benchmark completes
-  useEffect(() => {
-    if (status === 'completed') {
-      setIsCovered(true);
-    }
-  }, [status]);
 
   // Empty / Idle / Running states
   if (status === 'idle' || status === 'running') {
