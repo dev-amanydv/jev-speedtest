@@ -1,12 +1,16 @@
 import { NextResponse } from 'next/server';
 import { experimental_evaluate as evaluate } from 'ai';
-import { BENCHMARK_STATE, BENCHMARK_DECISIONS } from '@/lib/benchmark/questions';
+import {
+  BENCHMARK_DEFAULT_INPUT,
+  getPresetOrFallback,
+  classifyDecisions,
+} from '@/lib/benchmark/questions';
 import { calculateCost } from '@/lib/benchmark/pricing';
 import { checkRateLimit } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
-function formatAnswer(id: string, val: unknown): string {
+function formatAnswer(val: unknown): string {
   if (typeof val === 'boolean') {
     return val ? 'Yes' : 'No';
   }
@@ -36,6 +40,22 @@ export async function POST(request: Request) {
     return rateLimitResult.response!;
   }
 
+  let ticketMessage = BENCHMARK_DEFAULT_INPUT;
+  let presetId: string | null = null;
+  try {
+    const body = await request.json();
+    if (body && typeof body.input === 'string' && body.input.trim().length > 0) {
+      ticketMessage = body.input.trim();
+    }
+    if (body && typeof body.presetId === 'string') {
+      presetId = body.presetId;
+    }
+  } catch {
+    // Body is optional; fallback to default input
+  }
+
+  const { preset: activePreset, decisions } = getPresetOrFallback(presetId);
+
   const benchmarkStart = performance.now();
   const apiKey = process.env.AI_GATEWAY_API_KEY || process.env.JEV_API_KEY;
 
@@ -46,92 +66,90 @@ export async function POST(request: Request) {
         if (!process.env.AI_GATEWAY_API_KEY && apiKey) {
           process.env.AI_GATEWAY_API_KEY = apiKey;
         }
-        const questionsSchema = {
-        department: {
-          type: 'choice' as const,
-          instructions: 'Determine which team should handle the request.',
-          criteria: BENCHMARK_DECISIONS.find((d) => d.id === 'department')?.criteria as Record<string, string>,
-        },
-        refund: {
-          type: 'boolean' as const,
-          instructions: 'Is the customer requesting a refund?',
-          criteria: BENCHMARK_DECISIONS.find((d) => d.id === 'refund')?.criteria as Record<string, string>,
-        },
-        urgency: {
-          type: 'choice' as const,
-          instructions: 'Determine the urgency of the request.',
-          criteria: BENCHMARK_DECISIONS.find((d) => d.id === 'urgency')?.criteria as Record<string, string>,
-        },
-        escalation: {
-          type: 'boolean' as const,
-          instructions: 'Should this request be escalated immediately?',
-          criteria: BENCHMARK_DECISIONS.find((d) => d.id === 'escalation')?.criteria as Record<string, string>,
-        },
-        severity: {
-          type: 'score' as const,
-          instructions: 'Score the issue severity from 1 (low impact) to 4 (critical impact).',
-          criteria: BENCHMARK_DECISIONS.find((d) => d.id === 'severity')?.criteria as string[],
-        },
-        next_action: {
-          type: 'choice' as const,
-          instructions: 'Determine the recommended next action.',
-          criteria: BENCHMARK_DECISIONS.find((d) => d.id === 'next_action')?.criteria as Record<string, string>,
-        },
-      };
 
-      const result = await evaluate({
-        model: 'typesafe-ai/jev',
-        state: BENCHMARK_STATE,
-        questions: questionsSchema,
-      });
-
-      const totalLatencyMs = Math.round(performance.now() - benchmarkStart);
-
-      const answers: Record<string, string | number | boolean> = {};
-      const formattedAnswers: Record<string, string> = {};
-
-      for (const d of BENCHMARK_DECISIONS) {
-        const ansObj = (result.answers as Record<string, any>)?.[d.id];
-        let val: string | number | boolean = d.expectedAnswer ?? '';
-        if (ansObj) {
-          if (typeof ansObj.choice === 'string') val = ansObj.choice;
-          else if (typeof ansObj.probability === 'number') val = ansObj.probability >= 0.5;
-          else if (typeof ansObj.score === 'number') val = ansObj.score;
-          else if (typeof ansObj.value !== 'undefined') val = ansObj.value;
+        const questionsSchema: Record<string, any> = {};
+        for (const d of decisions) {
+          if (d.type === 'choice') {
+            questionsSchema[d.id] = {
+              type: 'choice' as const,
+              instructions: d.prompt,
+              criteria: d.criteria as Record<string, string>,
+            };
+          } else if (d.type === 'boolean') {
+            questionsSchema[d.id] = {
+              type: 'boolean' as const,
+              instructions: d.prompt,
+              criteria: d.criteria as Record<string, string>,
+            };
+          } else if (d.type === 'score') {
+            questionsSchema[d.id] = {
+              type: 'score' as const,
+              instructions: d.prompt,
+              criteria: d.criteria as string[],
+            };
+          }
         }
-        answers[d.id] = val;
-        formattedAnswers[d.id] = formatAnswer(d.id, val);
-      }
 
-      const inputTokens = (result as any)?.usage?.inputTokens ?? 76;
-      const outputTokens = (result as any)?.usage?.outputTokens ?? 0;
-      const costPer1k = calculateCost({
-        provider: 'jev',
-        inputTokens,
-        outputTokens,
-        runs: 1000,
-      });
-
-      return NextResponse.json(
-        {
-          success: true,
-          totalLatencyMs,
-          answers,
-          formattedAnswers,
-          metrics: {
-            totalLatencyMs,
-            inputTokens,
-            outputTokens,
-            requestsCount: 1,
-            executionMode: 'parallel',
-            model: 'jev-latest',
-            costPer1k,
+        const result = await evaluate({
+          model: 'typesafe-ai/jev',
+          state: {
+            ticket: {
+              subject: activePreset?.title || 'Inbound Request',
+              message: ticketMessage,
+            },
           },
-        },
-        {
-          headers: rateLimitResult.headers,
+          questions: questionsSchema as any,
+        });
+
+        const totalLatencyMs = Math.round(performance.now() - benchmarkStart);
+
+        const answers: Record<string, string | number | boolean> = {};
+        const formattedAnswers: Record<string, string> = {};
+
+        for (const d of decisions) {
+          const ansObj = (result.answers as Record<string, any>)?.[d.id];
+          let val: string | number | boolean = d.expectedAnswer ?? '';
+          if (ansObj) {
+            if (typeof ansObj.choice === 'string') val = ansObj.choice;
+            else if (typeof ansObj.probability === 'number') val = ansObj.probability >= 0.5;
+            else if (typeof ansObj.score === 'number') val = ansObj.score;
+            else if (typeof ansObj.value !== 'undefined') val = ansObj.value;
+          }
+          answers[d.id] = val;
+          formattedAnswers[d.id] = formatAnswer(val);
         }
-      );
+
+        const inputTokens =
+          (result as any)?.usage?.inputTokens ??
+          Math.max(40, Math.round(ticketMessage.split(/\s+/).length * 1.3) + 45);
+        const outputTokens = (result as any)?.usage?.outputTokens ?? 0;
+        const costPer1k = calculateCost({
+          provider: 'jev',
+          inputTokens,
+          outputTokens,
+          runs: 1000,
+        });
+
+        return NextResponse.json(
+          {
+            success: true,
+            totalLatencyMs,
+            answers,
+            formattedAnswers,
+            metrics: {
+              totalLatencyMs,
+              inputTokens,
+              outputTokens,
+              requestsCount: 1,
+              executionMode: 'parallel',
+              model: 'jev-latest',
+              costPer1k,
+            },
+          },
+          {
+            headers: rateLimitResult.headers,
+          }
+        );
       } catch (liveErr: any) {
         console.warn(
           'Jev live evaluation failed, falling back to simulated benchmark:',
@@ -147,25 +165,15 @@ export async function POST(request: Request) {
 
     const totalLatencyMs = Math.round(performance.now() - benchmarkStart);
 
-    const answers: Record<string, string | number | boolean> = {
-      department: 'billing',
-      refund: true,
-      urgency: 'urgent',
-      escalation: true,
-      severity: 3,
-      next_action: 'refund',
-    };
+    const classified = classifyDecisions(ticketMessage, decisions, presetId);
+    const answers: Record<string, string | number | boolean> = classified;
 
-    const formattedAnswers: Record<string, string> = {
-      department: 'Billing',
-      refund: 'Yes',
-      urgency: 'Urgent',
-      escalation: 'Yes',
-      severity: '3',
-      next_action: 'Refund',
-    };
+    const formattedAnswers: Record<string, string> = {};
+    for (const d of decisions) {
+      formattedAnswers[d.id] = formatAnswer(classified[d.id]);
+    }
 
-    const inputTokens = 76;
+    const inputTokens = Math.max(40, Math.round(ticketMessage.split(/\s+/).length * 1.3) + 45);
     const outputTokens = 0;
     const costPer1k = calculateCost({
       provider: 'jev',

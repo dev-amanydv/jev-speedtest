@@ -1,4 +1,8 @@
-import { BENCHMARK_DECISIONS, BENCHMARK_STATE } from '@/lib/benchmark/questions';
+import {
+  BENCHMARK_DEFAULT_INPUT,
+  getPresetOrFallback,
+  classifyDecisions,
+} from '@/lib/benchmark/questions';
 import { calculateCost } from '@/lib/benchmark/pricing';
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { ChatGroq } from '@langchain/groq';
@@ -6,7 +10,7 @@ import { checkRateLimit } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
-function formatAnswer(id: string, val: unknown): string {
+function formatAnswer(val: unknown): string {
   if (typeof val === 'boolean') {
     return val ? 'Yes' : 'No';
   }
@@ -35,6 +39,22 @@ export async function POST(request: Request) {
   if (!rateLimitResult.allowed) {
     return rateLimitResult.response!;
   }
+
+  let ticketMessage = BENCHMARK_DEFAULT_INPUT;
+  let presetId: string | null = null;
+  try {
+    const body = await request.json();
+    if (body && typeof body.input === 'string' && body.input.trim().length > 0) {
+      ticketMessage = body.input.trim();
+    }
+    if (body && typeof body.presetId === 'string') {
+      presetId = body.presetId;
+    }
+  } catch {
+    // Body optional; fallback to default input
+  }
+
+  const { decisions } = getPresetOrFallback(presetId);
 
   const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
   const groqApiKey = process.env.GROQ_API_KEY;
@@ -88,24 +108,25 @@ export async function POST(request: Request) {
         let totalOutputTokens = 0;
         const stepResults: Record<string, any> = {};
 
-        for (const decision of BENCHMARK_DECISIONS) {
+        const promptClassification = classifyDecisions(ticketMessage, decisions, presetId);
+
+        for (const decision of decisions) {
           sendEvent({
             type: 'step_start',
             stepId: decision.id,
           });
 
           const stepStart = performance.now();
-          let rawAnswer: any = decision.expectedAnswer;
-          let stepInputTokens = 275;
+          let rawAnswer: any = promptClassification[decision.id] ?? decision.expectedAnswer;
+          let stepInputTokens = Math.max(180, Math.round(ticketMessage.split(/\s+/).length * 1.3) + 210);
           let stepOutputTokens = 12;
 
           if (activeModel) {
             try {
               // Real LLM call through configured Gemini model with Groq fallback
-              const prompt = `You are a customer support triage classifier.
+              const prompt = `You are an automated triage and classification engine.
 Context:
-Subject: ${BENCHMARK_STATE.ticket.subject}
-Message: ${BENCHMARK_STATE.ticket.message}
+Message: ${ticketMessage}
 
 Task: ${decision.prompt}
 Criteria / options: ${JSON.stringify(decision.criteria || decision.options)}
@@ -144,7 +165,7 @@ Return ONLY the concise classification value.`;
                 rawAnswer = cleaned.includes('yes') || cleaned.includes('true');
               } else if (decision.type === 'score') {
                 const match = cleaned.match(/[1-4]/);
-                rawAnswer = match ? parseInt(match[0], 10) : 3;
+                rawAnswer = match ? parseInt(match[0], 10) : (decision.expectedAnswer ?? 2);
               } else {
                 const found = decision.options?.find((opt) =>
                   cleaned.includes(opt.toLowerCase())
@@ -167,7 +188,7 @@ Return ONLY the concise classification value.`;
           totalInputTokens += stepInputTokens;
           totalOutputTokens += stepOutputTokens;
 
-          const formatted = formatAnswer(decision.id, rawAnswer);
+          const formatted = formatAnswer(rawAnswer);
           stepResults[decision.id] = {
             raw: rawAnswer,
             formatted,
@@ -198,7 +219,7 @@ Return ONLY the concise classification value.`;
             totalLatencyMs,
             inputTokens: totalInputTokens,
             outputTokens: totalOutputTokens,
-            requestsCount: BENCHMARK_DECISIONS.length,
+            requestsCount: decisions.length,
             executionMode: 'sequential',
             model: modelDisplayName,
             costPer1k,

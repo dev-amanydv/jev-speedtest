@@ -1,12 +1,6 @@
-export type DecisionId =
-  | 'department'
-  | 'refund'
-  | 'urgency'
-  | 'escalation'
-  | 'severity'
-  | 'next_action';
+export type DecisionId = string;
 
-export type DecisionType = 'choice' | 'boolean' | 'score';
+export type DecisionType = 'choice' | 'boolean' | 'score' | 'percentage';
 
 export type DecisionStatus = 'idle' | 'running' | 'completed' | 'error';
 
@@ -20,6 +14,8 @@ export interface DecisionDefinition {
   scale?: number[];
   criteria?: Record<string, string> | string[];
   expectedAnswer?: string | number | boolean;
+  unit?: string;
+  description?: string;
 }
 
 export interface DecisionResult {

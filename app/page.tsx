@@ -5,16 +5,22 @@ import { TopNav } from '@/components/TopNav';
 import { BenchmarkSidebar } from '@/components/BenchmarkSidebar';
 import { ModelColumn } from '@/components/ModelColumn';
 import { ResultSection } from '@/components/ResultSection';
-import { BENCHMARK_DECISIONS } from '@/lib/benchmark/questions';
+import {
+  BENCHMARK_PRESETS,
+  BENCHMARK_DEFAULT_INPUT,
+  getPresetOrFallback,
+  PresetId,
+} from '@/lib/benchmark/questions';
 import {
   BenchmarkMetrics,
+  DecisionDefinition,
   DecisionId,
   DecisionResult,
   BenchmarkRunEvent,
 } from '@/lib/benchmark/types';
 
-function buildInitialResults(): Record<DecisionId, DecisionResult> {
-  return BENCHMARK_DECISIONS.reduce((acc, d) => {
+function buildInitialResults(decisions: DecisionDefinition[]): Record<DecisionId, DecisionResult> {
+  return decisions.reduce((acc, d) => {
     acc[d.id] = { id: d.id, status: 'idle' };
     return acc;
   }, {} as Record<DecisionId, DecisionResult>);
@@ -24,6 +30,13 @@ export default function BenchmarkPage() {
   const [status, setStatus] = useState<'idle' | 'running' | 'completed' | 'error'>('idle');
   const [accessibleStatus, setAccessibleStatus] = useState<string>('Ready to run benchmark');
 
+  // Active preset & input text
+  const [activePresetId, setActivePresetId] = useState<PresetId | null>('billing');
+  const [inputText, setInputText] = useState<string>(BENCHMARK_DEFAULT_INPUT);
+
+  const { preset: activePreset, decisions: currentDecisions, isPreset } = getPresetOrFallback(activePresetId);
+  const isCustom = !isPreset || inputText.trim() !== activePreset?.text.trim();
+
   // Timers & Run metadata
   const [startTime, setStartTime] = useState<number | undefined>(undefined);
   const [isTraditionalRunning, setIsTraditionalRunning] = useState(false);
@@ -32,8 +45,12 @@ export default function BenchmarkPage() {
   const [jevLatencyMs, setJevLatencyMs] = useState<number | undefined>(undefined);
 
   // Results & Metrics
-  const [traditionalResults, setTraditionalResults] = useState<Record<DecisionId, DecisionResult>>(buildInitialResults);
-  const [jevResults, setJevResults] = useState<Record<DecisionId, DecisionResult>>(buildInitialResults);
+  const [traditionalResults, setTraditionalResults] = useState<Record<DecisionId, DecisionResult>>(() =>
+    buildInitialResults(currentDecisions)
+  );
+  const [jevResults, setJevResults] = useState<Record<DecisionId, DecisionResult>>(() =>
+    buildInitialResults(currentDecisions)
+  );
   const [traditionalMetrics, setTraditionalMetrics] = useState<BenchmarkMetrics | undefined>(undefined);
   const [jevMetrics, setJevMetrics] = useState<BenchmarkMetrics | undefined>(undefined);
 
@@ -56,6 +73,49 @@ export default function BenchmarkPage() {
       }
     };
   }, []);
+
+  const handleSelectPreset = useCallback(
+    (presetId: PresetId) => {
+      if (status === 'running') return;
+      const targetPreset = BENCHMARK_PRESETS.find((p) => p.id === presetId);
+      if (targetPreset) {
+        setActivePresetId(presetId);
+        setInputText(targetPreset.text);
+        setTraditionalResults(buildInitialResults(targetPreset.decisions));
+        setJevResults(buildInitialResults(targetPreset.decisions));
+        setStatus('idle');
+        setTraditionalLatencyMs(undefined);
+        setJevLatencyMs(undefined);
+        setTraditionalMetrics(undefined);
+        setJevMetrics(undefined);
+        setTraditionalError(undefined);
+        setJevError(undefined);
+      }
+    },
+    [status]
+  );
+
+  const handleInputChange = useCallback(
+    (newText: string) => {
+      setInputText(newText);
+      const matchingPreset = BENCHMARK_PRESETS.find((p) => p.text.trim() === newText.trim());
+      if (matchingPreset) {
+        if (activePresetId !== matchingPreset.id) {
+          setActivePresetId(matchingPreset.id);
+          setTraditionalResults(buildInitialResults(matchingPreset.decisions));
+          setJevResults(buildInitialResults(matchingPreset.decisions));
+        }
+      } else {
+        if (activePresetId !== null) {
+          setActivePresetId(null);
+          const { decisions: fallbackDecisions } = getPresetOrFallback(null);
+          setTraditionalResults(buildInitialResults(fallbackDecisions));
+          setJevResults(buildInitialResults(fallbackDecisions));
+        }
+      }
+    },
+    [activePresetId]
+  );
 
   const runBenchmark = useCallback(async () => {
     if (status === 'running') return;
@@ -88,8 +148,11 @@ export default function BenchmarkPage() {
     setJevMetrics(undefined);
     setTraditionalError(undefined);
     setJevError(undefined);
-    setTraditionalResults(buildInitialResults());
-    setJevResults(buildInitialResults());
+    setTraditionalResults(buildInitialResults(currentDecisions));
+    setJevResults(buildInitialResults(currentDecisions));
+
+    const promptInput = inputText.trim() || BENCHMARK_DEFAULT_INPUT;
+    const currentPresetPayload = activePresetId || 'custom';
 
     // 1. Run Jev benchmark (Single parallel request)
     const runJevPromise = (async () => {
@@ -97,6 +160,10 @@ export default function BenchmarkPage() {
         const res = await fetch('/api/benchmark/jev', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            input: promptInput,
+            presetId: currentPresetPayload,
+          }),
           signal: jevController.signal,
         });
 
@@ -110,7 +177,7 @@ export default function BenchmarkPage() {
         const data = await res.json();
         if (activeRunIdRef.current !== runId) return;
 
-        // Jev arrives: all 6 complete simultaneously
+        // Jev arrives: all complete simultaneously
         setIsJevRunning(false);
         setJevLatencyMs(data.totalLatencyMs);
         setJevMetrics(data.metrics);
@@ -119,7 +186,7 @@ export default function BenchmarkPage() {
           DecisionId,
           DecisionResult
         >;
-        for (const d of BENCHMARK_DECISIONS) {
+        for (const d of currentDecisions) {
           newJevResults[d.id] = {
             id: d.id,
             status: 'completed',
@@ -142,6 +209,10 @@ export default function BenchmarkPage() {
         const res = await fetch('/api/benchmark/llm', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            input: promptInput,
+            presetId: currentPresetPayload,
+          }),
           signal: traditionalController.signal,
         });
 
@@ -226,7 +297,7 @@ export default function BenchmarkPage() {
       setStatus('completed');
       setAccessibleStatus('Benchmark complete');
     }
-  }, [status]);
+  }, [status, inputText, activePresetId, currentDecisions]);
 
   return (
     <div className="h-screen max-h-screen overflow-hidden flex flex-col bg-[#FAFAFA] text-[#111111]">
@@ -248,6 +319,13 @@ export default function BenchmarkPage() {
             onRun={runBenchmark}
             traditionalModel="gemini-3.5-flash-lite (fallback: groq)"
             jevModel="jev-latest"
+            inputText={inputText}
+            onInputChange={handleInputChange}
+            activePresetId={activePresetId}
+            activePreset={activePreset}
+            onSelectPreset={handleSelectPreset}
+            decisions={currentDecisions}
+            isCustom={isCustom}
           />
 
           {/* Right Benchmark Comparison Area (67%) */}
@@ -264,7 +342,7 @@ export default function BenchmarkPage() {
                   isRunning={isTraditionalRunning}
                   startTime={startTime}
                   totalLatencyMs={traditionalLatencyMs}
-                  decisions={BENCHMARK_DECISIONS}
+                  decisions={currentDecisions}
                   results={traditionalResults}
                   error={traditionalError}
                 />
@@ -277,7 +355,7 @@ export default function BenchmarkPage() {
                   isRunning={isJevRunning}
                   startTime={startTime}
                   totalLatencyMs={jevLatencyMs}
-                  decisions={BENCHMARK_DECISIONS}
+                  decisions={currentDecisions}
                   results={jevResults}
                   error={jevError}
                 />
