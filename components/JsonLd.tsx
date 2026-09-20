@@ -94,7 +94,8 @@ export function JsonLd() {
         'Creator of JEV Speed Test, building high-speed developer benchmarks, distributed web systems, and AI tooling.',
       sameAs: [
         'https://amanydv.in',
-        'https://github.com/amanyadav',
+        'https://github.com/dev-amanydv',
+        'https://x.com/aman100xdev',
       ],
     },
     {

@@ -84,7 +84,7 @@ export const metadata: Metadata = {
     description:
       "Live developer benchmark comparing Jev (typesafe-ai/jev) parallel evaluation vs traditional sequential LLM decision chains.",
     images: ["/og-banner.png"],
-    creator: "@amanyadav",
+    creator: "@aman100xdev",
   },
   robots: {
     index: true,
