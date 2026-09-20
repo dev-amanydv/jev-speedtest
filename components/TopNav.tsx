@@ -3,7 +3,7 @@ import { ArrowUpRight } from 'lucide-react';
 
 export function TopNav() {
   return (
-    <header className="w-full px-8 py-6 md:px-12 flex items-center justify-between select-none">
+    <header className="w-full h-14 px-6 md:px-10 flex-shrink-0 flex items-center justify-between border-b border-neutral-200/70 bg-[#FAFAFA] select-none">
       <div className="flex items-center gap-3">
         <span className="text-xs font-semibold tracking-wider text-neutral-900 uppercase">
           JEV SPEED TEST
