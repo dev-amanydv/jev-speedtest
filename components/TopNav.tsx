@@ -1,5 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { ArrowUpRight, Globe } from 'lucide-react';
 
 function GithubIcon({ className = 'w-3.5 h-3.5' }: { className?: string }) {
@@ -35,12 +36,20 @@ function XIcon({ className = 'w-3 h-3' }: { className?: string }) {
 export function TopNav() {
   return (
     <header className="w-full h-14 px-4 sm:px-6 md:px-10 flex-shrink-0 flex items-center justify-between border-b border-neutral-200/70 bg-[#FAFAFA] select-none">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center">
         <Link
           href="/"
-          className="text-xs font-semibold tracking-wider text-neutral-900 uppercase hover:text-neutral-600 transition-colors"
+          className="flex items-center hover:opacity-80 transition-opacity"
+          aria-label="JEV Speed Test"
         >
-          JEV SPEED TEST
+          <Image
+            src="/jev-logo.png"
+            alt="JEV Speed Test"
+            width={140}
+            height={50}
+            className="h-8 sm:h-14 w-auto object-contain"
+            priority
+          />
         </Link>
       </div>
       <div className="flex items-center gap-1.5 sm:gap-2.5">

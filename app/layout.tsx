@@ -99,8 +99,8 @@ export const metadata: Metadata = {
   },
   category: "technology",
   icons: {
-    icon: "/favicon.ico",
-    apple: "/favicon.ico",
+    icon: "/jev-icon.png",
+    apple: "/jev-icon.png",
   },
 };
 
