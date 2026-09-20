@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
+import { JsonLd } from "@/components/JsonLd";
 import "./globals.css";
 
 const geistSans = localFont({
@@ -111,9 +112,12 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} antialiased scroll-smooth`}
+      className={`${geistSans.variable} ${geistMono.variable} h-full overflow-hidden antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-[#FAFAFA] text-[#111111]">
+      <head>
+        <JsonLd />
+      </head>
+      <body className="h-full overflow-hidden flex flex-col bg-[#FAFAFA] text-[#111111]">
         {children}
       </body>
     </html>
