@@ -1,36 +1,86 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# JEV Speed Test
+
+A minimal, developer-oriented benchmark web application that compares how quickly a traditional LLM workflow and **Jev** can make the same set of structured decisions from the same input.
+
+> **Same input → same decisions → different execution time → measurable speed/cost difference.**
+
+---
+
+## Benchmark Overview
+
+The benchmark evaluates a realistic customer support ticket:
+
+> *"I've been charged twice for my subscription. I need one refund and this is really urgent."*
+
+Both systems evaluate the **exact same 6 structured decisions**:
+1. **Department** (`choice`: billing, technical, sales, other)
+2. **Refund** (`boolean` / Noul: Is the customer requesting a refund?)
+3. **Urgency** (`choice`: routine, normal, urgent, critical)
+4. **Escalation** (`boolean` / Noul: Should this request be escalated immediately?)
+5. **Severity** (`score`: 1 to 4 with impact rubric)
+6. **Next action** (`choice`: refund, investigate, respond, escalate)
+
+### Execution Model Comparison
+
+| Metric / Dimension | Traditional LLM | Jev (`typesafe-ai/jev`) |
+| :--- | :--- | :--- |
+| **Input** | Same support ticket | Same support ticket |
+| **Decisions** | 6 decisions | 6 decisions |
+| **Requests** | 6 sequential requests | 1 single evaluation request |
+| **Execution** | Sequential | Parallel |
+| **Latency** | Measured end-to-end sequential time | Measured single evaluation time |
+| **Streaming** | Step-by-step progress | Simultaneous completion |
+
+---
+
+## Tech Stack
+
+- **Framework**: [Next.js](https://nextjs.org/) (App Router, Turbopack)
+- **Language**: [TypeScript](https://www.typescriptlang.org/)
+- **Styling**: [Tailwind CSS](https://tailwindcss.com/)
+- **Icons**: [Lucide React](https://lucide.dev/)
+- **AI Integration**: [Vercel AI SDK](https://ai-sdk.dev/) (`experimental_evaluate`, `@ai-sdk/openai`)
+
+---
 
 ## Getting Started
 
-First, run the development server:
+### 1. Clone & Install Dependencies
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+bun install
+# or: npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. Environment Configuration (Optional)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Create a `.env.local` file:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+cp .env.example .env.local
+```
 
-## Learn More
+Configure your Vercel AI Gateway key:
 
-To learn more about Next.js, take a look at the following resources:
+```env
+AI_GATEWAY_API_KEY=your_key_here
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+> **Note**: When `AI_GATEWAY_API_KEY` is not provided, the server automatically operates in realistic developer benchmark simulation mode, demonstrating the true timing characteristics and workflow differences without external dependencies.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### 3. Run Development Server
 
-## Deploy on Vercel
+```bash
+bun dev
+# or: npm run dev
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+
+## Design System & Principles
+
+- **Developer Tooling Aesthetic**: Linear / Vercel style — typographic hierarchy, hairline borders (`#E5E7EB`), spacious whitespace, `#FAFAFA` monochrome background.
+- **Accurate Real-Time Clocks**: High-precision `performance.now()` with `requestAnimationFrame` for live visual timers in monospace font.
+- **Honest Metrics**: No fake Jev decision streaming, no hardcoded speed multipliers, and no celebratory animations. Cost is estimated via centralized pricing configuration (`lib/benchmark/pricing.ts`).
