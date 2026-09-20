@@ -15,11 +15,11 @@ export const PRICING_CONFIG: Record<'jev' | 'traditional', ProviderPricing> = {
     notes: 'Input tokens $0.042/1M, output tokens free',
   },
   traditional: {
-    name: 'Traditional LLM',
-    model: 'gpt-4o-mini',
-    inputPerMillion: 0.15, // $0.15 per 1M input tokens
-    outputPerMillion: 0.60, // $0.60 per 1M output tokens
-    notes: 'Input $0.15/1M, output $0.60/1M',
+    name: 'Traditional LLM (Gemini / Groq)',
+    model: 'gemini-3.5-flash-lite',
+    inputPerMillion: 0.075, // $0.075 per 1M input tokens
+    outputPerMillion: 0.30, // $0.30 per 1M output tokens
+    notes: 'Primary: Gemini (gemini-3.5-flash-lite), Fallback: Groq',
   },
 };
 

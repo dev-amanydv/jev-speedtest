@@ -60,13 +60,22 @@ Create a `.env.local` file:
 cp .env.example .env.local
 ```
 
-Configure your Vercel AI Gateway key:
+Configure your API keys in `.env.local`:
 
 ```env
-AI_GATEWAY_API_KEY=your_key_here
+# 1. Jev evaluation via Vercel AI Gateway (or JEV_API_KEY)
+AI_GATEWAY_API_KEY=your_vercel_ai_gateway_api_key_here
+
+# 2. Traditional LLM: Primary Google Gemini
+GEMINI_API_KEY=your_gemini_api_key_here
+GEMINI_MODEL=gemini-3.5-flash-lite
+
+# 3. Traditional LLM: Fallback Groq
+GROQ_API_KEY=your_groq_api_key_here
+GROQ_MODEL=openai/gpt-oss-120b
 ```
 
-> **Note**: When `AI_GATEWAY_API_KEY` is not provided, the server automatically operates in realistic developer benchmark simulation mode, demonstrating the true timing characteristics and workflow differences without external dependencies.
+> **Note**: If API keys are not provided or kept as placeholders, the server automatically operates in realistic developer benchmark simulation mode, demonstrating the true timing characteristics and workflow differences without external dependencies.
 
 ### 3. Run Development Server
 

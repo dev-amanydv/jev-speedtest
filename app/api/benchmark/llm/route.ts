@@ -1,7 +1,8 @@
 import { BENCHMARK_DECISIONS, BENCHMARK_STATE } from '@/lib/benchmark/questions';
 import { calculateCost } from '@/lib/benchmark/pricing';
-import { openai } from '@ai-sdk/openai';
-import { generateText } from 'ai';
+import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
+import { ChatGroq } from '@langchain/groq';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,8 +19,61 @@ function formatAnswer(id: string, val: unknown): string {
   return String(val ?? '');
 }
 
-export async function POST() {
-  const apiKey = process.env.AI_GATEWAY_API_KEY;
+function isPlaceholderOrEmpty(val?: string): boolean {
+  if (!val) return true;
+  const trimmed = val.trim();
+  return (
+    trimmed === '' ||
+    trimmed.startsWith('your_') ||
+    trimmed.includes('placeholder') ||
+    trimmed === 'YOUR_API_KEY'
+  );
+}
+
+export async function POST(request: Request) {
+  const rateLimitResult = checkRateLimit(request, 'llm');
+  if (!rateLimitResult.allowed) {
+    return rateLimitResult.response!;
+  }
+
+  const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  const groqApiKey = process.env.GROQ_API_KEY;
+  const geminiModelName = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
+  const groqModelName = process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
+
+  const hasGemini = !isPlaceholderOrEmpty(geminiApiKey);
+  const hasGroq = !isPlaceholderOrEmpty(groqApiKey);
+
+  let activeModel: any = null;
+  let modelDisplayName = `${geminiModelName} (fallback: groq)`;
+
+  if (hasGemini && hasGroq) {
+    const geminiModel = new ChatGoogleGenerativeAI({
+      model: geminiModelName,
+      apiKey: geminiApiKey,
+    });
+    const groqModel = new ChatGroq({
+      model: groqModelName,
+      apiKey: groqApiKey,
+    });
+    activeModel = geminiModel.withFallbacks({
+      fallbacks: [groqModel],
+    });
+    modelDisplayName = `${geminiModelName} (fallback: ${groqModelName})`;
+  } else if (hasGemini) {
+    activeModel = new ChatGoogleGenerativeAI({
+      model: geminiModelName,
+      apiKey: geminiApiKey,
+    });
+    modelDisplayName = geminiModelName;
+  } else if (hasGroq) {
+    activeModel = new ChatGroq({
+      model: groqModelName,
+      apiKey: groqApiKey,
+    });
+    modelDisplayName = `${groqModelName} (Groq)`;
+  }
+
   const benchmarkStart = performance.now();
 
   const stream = new ReadableStream({
@@ -45,9 +99,9 @@ export async function POST() {
           let stepInputTokens = 275;
           let stepOutputTokens = 12;
 
-          if (apiKey && apiKey.trim() !== '') {
+          if (activeModel) {
             try {
-              // Real LLM call through configured provider/gateway
+              // Real LLM call through configured Gemini model with Groq fallback
               const prompt = `You are a customer support triage classifier.
 Context:
 Subject: ${BENCHMARK_STATE.ticket.subject}
@@ -58,15 +112,31 @@ Criteria / options: ${JSON.stringify(decision.criteria || decision.options)}
 
 Return ONLY the concise classification value.`;
 
-              const { text, usage } = await generateText({
-                model: openai('gpt-4o-mini'),
-                prompt,
-                maxOutputTokens: 25,
-              });
+              const response = await activeModel.invoke(prompt);
 
+              // Extract text content from AIMessage
+              let text = '';
+              if (typeof response.content === 'string') {
+                text = response.content;
+              } else if (Array.isArray(response.content)) {
+                text = response.content
+                  .map((part: any) =>
+                    typeof part === 'string' ? part : part?.text || ''
+                  )
+                  .join('');
+              } else {
+                text = String(response.content ?? '');
+              }
+
+              // Extract usage tokens if reported by provider
+              const usage = (response as any).usage_metadata;
               if (usage) {
-                stepInputTokens = usage.inputTokens ?? stepInputTokens;
-                stepOutputTokens = usage.outputTokens ?? stepOutputTokens;
+                stepInputTokens = usage.input_tokens ?? stepInputTokens;
+                stepOutputTokens = usage.output_tokens ?? stepOutputTokens;
+              } else if ((response as any).response_metadata?.tokenUsage) {
+                const tu = (response as any).response_metadata.tokenUsage;
+                stepInputTokens = tu.promptTokens ?? stepInputTokens;
+                stepOutputTokens = tu.completionTokens ?? stepOutputTokens;
               }
 
               const cleaned = text.trim().toLowerCase();
@@ -76,11 +146,14 @@ Return ONLY the concise classification value.`;
                 const match = cleaned.match(/[1-4]/);
                 rawAnswer = match ? parseInt(match[0], 10) : 3;
               } else {
-                const found = decision.options?.find((opt) => cleaned.includes(opt.toLowerCase()));
+                const found = decision.options?.find((opt) =>
+                  cleaned.includes(opt.toLowerCase())
+                );
                 rawAnswer = found || decision.expectedAnswer;
               }
             } catch (err) {
-              // If live call fails, use realistic simulated step execution
+              console.error(`LLM decision ${decision.id} live call failed, falling back to simulated delay:`, err);
+              // If live call fails (or both providers fail), use realistic simulated step execution
               const simulatedStepDuration = Math.floor(1150 + Math.random() * 250);
               await new Promise((r) => setTimeout(r, simulatedStepDuration));
             }
@@ -127,7 +200,7 @@ Return ONLY the concise classification value.`;
             outputTokens: totalOutputTokens,
             requestsCount: BENCHMARK_DECISIONS.length,
             executionMode: 'sequential',
-            model: 'gpt-4o-mini',
+            model: modelDisplayName,
             costPer1k,
           },
         });

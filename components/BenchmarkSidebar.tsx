@@ -16,7 +16,7 @@ export function BenchmarkSidebar({
   isRunning,
   isCompleted,
   onRun,
-  traditionalModel = 'gpt-4o-mini',
+  traditionalModel = 'gemini-3.5-flash-lite (fallback: groq)',
   jevModel = 'jev-latest',
 }: BenchmarkSidebarProps) {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -115,7 +115,7 @@ export function BenchmarkSidebar({
                   COST METHODOLOGY
                 </p>
                 <p className="mt-1 text-neutral-500">
-                  Displayed costs are estimated from measured token usage and configured provider pricing: Jev input tokens at $0.042/1M (output free), Traditional LLM at $0.15/1M input and $0.60/1M output.
+                  Displayed costs are estimated from measured token usage and configured provider pricing: Jev input tokens at $0.042/1M (output free), Traditional LLM (Gemini / Groq) at $0.075/1M input and $0.30/1M output.
                 </p>
               </div>
             </div>

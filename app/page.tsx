@@ -245,7 +245,7 @@ export default function BenchmarkPage() {
             isRunning={status === 'running'}
             isCompleted={status === 'completed'}
             onRun={runBenchmark}
-            traditionalModel="gpt-4o-mini"
+            traditionalModel="gemini-3.5-flash-lite (fallback: groq)"
             jevModel="jev-latest"
           />
 
@@ -258,7 +258,7 @@ export default function BenchmarkPage() {
                 {/* Traditional LLM column */}
                 <ModelColumn
                   title="TRADITIONAL LLM"
-                  subtitle="Sequential evaluation"
+                  subtitle="Sequential (Gemini → Groq)"
                   variant="traditional"
                   isRunning={isTraditionalRunning}
                   startTime={startTime}

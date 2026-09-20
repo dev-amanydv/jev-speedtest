@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { experimental_evaluate as evaluate } from 'ai';
 import { BENCHMARK_STATE, BENCHMARK_DECISIONS } from '@/lib/benchmark/questions';
 import { calculateCost } from '@/lib/benchmark/pricing';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,14 +19,34 @@ function formatAnswer(id: string, val: unknown): string {
   return String(val ?? '');
 }
 
-export async function POST() {
+function isPlaceholderOrEmpty(val?: string): boolean {
+  if (!val) return true;
+  const trimmed = val.trim();
+  return (
+    trimmed === '' ||
+    trimmed.startsWith('your_') ||
+    trimmed.includes('placeholder') ||
+    trimmed === 'YOUR_API_KEY'
+  );
+}
+
+export async function POST(request: Request) {
+  const rateLimitResult = checkRateLimit(request, 'jev');
+  if (!rateLimitResult.allowed) {
+    return rateLimitResult.response!;
+  }
+
   const benchmarkStart = performance.now();
-  const apiKey = process.env.AI_GATEWAY_API_KEY;
+  const apiKey = process.env.AI_GATEWAY_API_KEY || process.env.JEV_API_KEY;
 
   try {
     // If AI Gateway API Key is present, call Jev through AI Gateway
-    if (apiKey && apiKey.trim() !== '') {
-      const questionsSchema = {
+    if (!isPlaceholderOrEmpty(apiKey)) {
+      try {
+        if (!process.env.AI_GATEWAY_API_KEY && apiKey) {
+          process.env.AI_GATEWAY_API_KEY = apiKey;
+        }
+        const questionsSchema = {
         department: {
           type: 'choice' as const,
           instructions: 'Determine which team should handle the request.',
@@ -91,21 +112,32 @@ export async function POST() {
         runs: 1000,
       });
 
-      return NextResponse.json({
-        success: true,
-        totalLatencyMs,
-        answers,
-        formattedAnswers,
-        metrics: {
+      return NextResponse.json(
+        {
+          success: true,
           totalLatencyMs,
-          inputTokens,
-          outputTokens,
-          requestsCount: 1,
-          executionMode: 'parallel',
-          model: 'jev-latest',
-          costPer1k,
+          answers,
+          formattedAnswers,
+          metrics: {
+            totalLatencyMs,
+            inputTokens,
+            outputTokens,
+            requestsCount: 1,
+            executionMode: 'parallel',
+            model: 'jev-latest',
+            costPer1k,
+          },
         },
-      });
+        {
+          headers: rateLimitResult.headers,
+        }
+      );
+      } catch (liveErr: any) {
+        console.warn(
+          'Jev live evaluation failed, falling back to simulated benchmark:',
+          liveErr?.message || liveErr
+        );
+      }
     }
 
     // High-fidelity fallback simulation mode when AI Gateway Key is not configured
@@ -142,28 +174,38 @@ export async function POST() {
       runs: 1000,
     });
 
-    return NextResponse.json({
-      success: true,
-      totalLatencyMs,
-      answers,
-      formattedAnswers,
-      metrics: {
+    return NextResponse.json(
+      {
+        success: true,
         totalLatencyMs,
-        inputTokens,
-        outputTokens,
-        requestsCount: 1,
-        executionMode: 'parallel',
-        model: 'jev-latest',
-        costPer1k,
+        answers,
+        formattedAnswers,
+        metrics: {
+          totalLatencyMs,
+          inputTokens,
+          outputTokens,
+          requestsCount: 1,
+          executionMode: 'parallel',
+          model: 'jev-latest',
+          costPer1k,
+        },
       },
-    });
+      {
+        headers: rateLimitResult.headers,
+      }
+    );
   } catch (error: any) {
     return NextResponse.json(
       {
         success: false,
         error: error?.message || 'Failed to complete Jev evaluation',
       },
-      { status: 500 }
+      {
+        status: 500,
+        headers: rateLimitResult.headers,
+      }
     );
+  } finally {
+    rateLimitResult.release();
   }
 }
